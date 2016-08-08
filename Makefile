@@ -38,13 +38,13 @@ FORKNAME			 = cleanflight
 
 64K_TARGETS  = CJMCU
 128K_TARGETS = ALIENFLIGHTF1 CC3D NAZE OLIMEXINO RMDO SPRACINGF1OSD
-256K_TARGETS = ALIENFLIGHTF3 CHEBUZZF3 COLIBRI_RACE EUSTM32F103RC IRCFUSIONF3 LUX_RACE MOTOLAB PORT103R SPARKY SPRACINGF3 SPRACINGF3EVO SPRACINGF3MINI STM32F3DISCOVERY SPRACINGF3OSD
+256K_TARGETS = ALIENFLIGHTF3 CHEBUZZF3 COLIBRI_RACE EUSTM32F103RC IRCFUSIONF3 LUX_RACE MOTOLAB PORT103R RCEXPLORERF3 SPARKY SPRACINGF3 SPRACINGF3EVO SPRACINGF3MINI STM32F3DISCOVERY SPRACINGF3OSD
 
-F3_TARGETS = ALIENFLIGHTF3 CHEBUZZF3 COLIBRI_RACE IRCFUSIONF3 LUX_RACE MOTOLAB RMDO SPARKY SPRACINGF3 SPRACINGF3EVO SPRACINGF3MINI STM32F3DISCOVERY SPRACINGF3OSD
+F3_TARGETS = ALIENFLIGHTF3 CHEBUZZF3 COLIBRI_RACE IRCFUSIONF3 LUX_RACE MOTOLAB RCEXPLORERF3 RMDO SPARKY SPRACINGF3 SPRACINGF3EVO SPRACINGF3MINI STM32F3DISCOVERY SPRACINGF3OSD
 
 VALID_TARGETS = $(64K_TARGETS) $(128K_TARGETS) $(256K_TARGETS)
 
-VCP_TARGETS = CC3D ALIENFLIGHTF3 CHEBUZZF3 COLIBRI_RACE LUX_RACE MOTOLAB SPARKY SPRACINGF3EVO SPRACINGF3MINI STM32F3DISCOVERY SPRACINGF1OSD SPRACINGF3OSD
+VCP_TARGETS = CC3D ALIENFLIGHTF3 CHEBUZZF3 COLIBRI_RACE LUX_RACE MOTOLAB RCEXPLORERF3 SPARKY SPRACINGF3EVO SPRACINGF3MINI STM32F3DISCOVERY SPRACINGF1OSD SPRACINGF3OSD
 OSD_TARGETS = SPRACINGF1OSD SPRACINGF3OSD
 
 # Configure default flash sizes for the targets
@@ -246,6 +246,7 @@ SYSTEM_SRC = \
 		   common/printf.c \
 		   common/streambuf.c \
 		   common/typeconversion.c \
+			 common/crc.c \
 		   drivers/buf_writer.c \
 		   drivers/dma.c \
 		   drivers/serial.c \
@@ -258,7 +259,7 @@ SYSTEM_SRC = \
 		   $(TARGET_SRC) \
 		   $(CMSIS_SRC) \
 		   $(DEVICE_STDPERIPH_SRC)
- 
+
 FC_COMMON_SRC = \
 		   config/feature.c \
 		   config/profile.c \
@@ -302,6 +303,7 @@ FC_COMMON_SRC = \
 		   rx/spektrum.c \
 		   rx/xbus.c \
 		   rx/ibus.c \
+			 rx/srxl.c \
 		   sensors/sensors.c \
 		   sensors/acceleration.c \
 		   sensors/battery.c \
@@ -351,7 +353,7 @@ VCP_SRC = \
 		   vcp/usb_prop.c \
 		   vcp/usb_pwr.c \
 		   drivers/serial_usb_vcp.c \
-		   drivers/usb_io.c 
+		   drivers/usb_io.c
 
 STM32F10x_COMMON_SRC = \
 		   drivers/adc.c \
@@ -584,7 +586,7 @@ COLIBRI_RACE_SRC = \
 		   $(FC_COMMON_SRC) \
 		   $(SYSTEM_SRC) \
 		   $(VCP_SRC)
-		   
+
 LUX_RACE_SRC = \
 		   $(STM32F30x_COMMON_SRC) \
 		   $(STM32F30x_FC_COMMON_SRC) \
@@ -627,6 +629,26 @@ ALIENFLIGHTF3_SRC = \
 		   drivers/compass_ak8963.c \
 		   drivers/serial_usb_vcp.c \
 		   drivers/sonar_hcsr04.c \
+		   $(HIGHEND_SRC) \
+		   $(FC_COMMON_SRC) \
+		   $(SYSTEM_SRC) \
+		   $(VCP_SRC)
+		  
+RCEXPLORERF3_SRC = \
+		   $(STM32F30x_COMMON_SRC) \
+		   $(STM32F30x_FC_COMMON_SRC) \
+		   drivers/accgyro_mpu.c \
+		   drivers/accgyro_spi_mpu6000.c \
+		   drivers/barometer_ms5611.c \
+		   drivers/compass_hmc5883l.c \
+		   drivers/compass_ak8975.c \
+		   drivers/display_ug2864hsweg01.c \
+		   drivers/serial_usb_vcp.c \
+		   drivers/flash_m25p16.c \
+		   drivers/light_ws2811strip.c \
+		   drivers/light_ws2811strip_stm32f30x.c \
+		   drivers/sonar_hcsr04.c \
+		   io/flashfs.c \
 		   $(HIGHEND_SRC) \
 		   $(FC_COMMON_SRC) \
 		   $(SYSTEM_SRC) \
@@ -737,7 +759,7 @@ SPRACINGF3MINI_SRC	 = \
 		   $(FC_COMMON_SRC) \
 		   $(SYSTEM_SRC) \
 		   $(VCP_SRC)
-		   
+
 IRCFUSIONF3_SRC = \
 		   $(STM32F30x_COMMON_SRC) \
 		   $(STM32F30x_FC_COMMON_SRC) \
