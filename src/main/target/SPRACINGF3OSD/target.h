@@ -52,27 +52,18 @@
 
 #define MAX7456_LOS_GPIO_PERIPHERAL     RCC_AHBPeriph_GPIOC
 #define MAX7456_LOS_GPIO                GPIOC
-#define MAX7456_LOS_PIN					Pin_13
-#define MAX7456_LOS_PORT_SOURCE			EXTI_PortSourceGPIOC
-#define MAX7456_LOS_PIN_SOURCE			EXTI_PinSource13
-#define MAX7456_LOS_EXTI_LINE			EXTI_Line13
-#define MAX7456_LOS_EXTI_IRQ			EXTI15_10_IRQn
+#define MAX7456_LOS_PIN                 Pin_13
+#define MAX7456_LOS_IO                  PC13
 
 #define MAX7456_VSYNC_GPIO_PERIPHERAL   RCC_AHBPeriph_GPIOC
-#define MAX7456_VSYNC_GPIO 				GPIOC
-#define MAX7456_VSYNC_PIN				Pin_14
-#define MAX7456_VSYNC_PORT_SOURCE		EXTI_PortSourceGPIOC
-#define MAX7456_VSYNC_PIN_SOURCE		EXTI_PinSource14
-#define MAX7456_VSYNC_EXTI_LINE			EXTI_Line14
-#define MAX7456_VSYNC_EXTI_IRQ			EXTI15_10_IRQn
+#define MAX7456_VSYNC_GPIO              GPIOC
+#define MAX7456_VSYNC_PIN               Pin_14
+#define MAX7456_VSYNC_IO                PC14
 
 #define MAX7456_HSYNC_GPIO_PERIPHERAL   RCC_AHBPeriph_GPIOC
-#define MAX7456_HSYNC_GPIO 				GPIOC
-#define MAX7456_HSYNC_PIN				Pin_15
-#define MAX7456_HSYNC_PORT_SOURCE		EXTI_PortSourceGPIOC
-#define MAX7456_HSYNC_PIN_SOURCE		EXTI_PinSource15
-#define MAX7456_HSYNC_EXTI_LINE			EXTI_Line15
-#define MAX7456_HSYNC_EXTI_IRQ			EXTI15_10_IRQn
+#define MAX7456_HSYNC_GPIO              GPIOC
+#define MAX7456_HSYNC_PIN               Pin_15
+#define MAX7456_HSYNC_IO                PC15
 
 #define EXTI_CALLBACK_HANDLER_COUNT 3 // LOS, HSYNC, VSYNC
 
@@ -100,6 +91,8 @@
 #endif
 
 #define USE_MSP_CLIENT
+
+#define USE_EXTI
 
 #define USE_ADC
 
@@ -136,4 +129,8 @@
 #define ADC_BATTERY ADC_CHANNEL2
 #define ADC_CURRENT ADC_CHANNEL3
 
-
+// IO - stm32f303cc in 48pin package
+#define TARGET_IO_PORTA 0xffff
+#define TARGET_IO_PORTB 0xffff
+#define TARGET_IO_PORTC (BIT(13)|BIT(14)|BIT(15))
+#define TARGET_IO_PORTF (BIT(0)|BIT(1))

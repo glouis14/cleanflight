@@ -23,7 +23,9 @@
 
 #include "build/debug.h"
 
+#include "drivers/io.h"
 #include "drivers/exti.h"
+#include "drivers/nvic.h"
 #include "drivers/video.h"
 #include "drivers/video_textscreen.h"
 #include "drivers/video_max7456.h"
@@ -129,9 +131,13 @@ uint8_t max7456_videoModeMask;
 
 textScreen_t max7456Screen;
 max7456State_t max7456State;
-static const extiConfig_t *max7456LOSExtiConfig;
-static const extiConfig_t *max7456VSYNCExtiConfig;
-static const extiConfig_t *max7456HSYNCExtiConfig;
+
+static extiCallbackRec_t losExtiCallbackRec;
+static IO_t losIO;
+static extiCallbackRec_t vsyncExtiCallbackRec;
+static IO_t vsyncIO;
+static extiCallbackRec_t hsyncExtiCallbackRec;
+static IO_t hsyncIO;
 
 #if 0
 // for factory max7456 font
@@ -155,122 +161,43 @@ static const uint8_t max7456_defaultFont_fontToASCIIMapping[] = {
 };
 #endif
 
-
-static bool max7456ExtiHandler(const extiConfig_t *extiConfig)
-{
-    if (EXTI_GetITStatus(extiConfig->exti_line) == RESET) {
-        return false;
-    }
-
-    EXTI_ClearITPendingBit(extiConfig->exti_line);
-
-    return true;
-}
-
-
 void max7456_updateLOSState(void)
 {
     // "LOS goes high when the VIN sync pulse is lost for 32 consecutive lines. LOS goes low when 32 consecutive valid sync pulses are received."
-    uint8_t status = GPIO_ReadInputDataBit(max7456LOSExtiConfig->gpioPort, max7456LOSExtiConfig->gpioPin);
-
+    bool status = IORead(losIO);
     max7456State.los = status != 0;
 
     //debug[0] = max7456State.los;
 }
 
-void LOS_EXTI_Handler(void)
+void LOS_EXTI_Handler(extiCallbackRec_t* cb)
 {
+    UNUSED(cb);
     static uint32_t callCount = 0;
-    bool set = max7456ExtiHandler(max7456LOSExtiConfig);
     callCount++;
-    if (!set) {
-        return;
-    }
-
     max7456State.losCounter++;
-
     max7456_updateLOSState();
 }
 
-void VSYNC_EXTI_Handler(void)
+void VSYNC_EXTI_Handler(extiCallbackRec_t* cb)
 {
+    UNUSED(cb);
     static uint32_t callCount = 0;
-    bool set = max7456ExtiHandler(max7456VSYNCExtiConfig);
     callCount++;
-    if (!set) {
-        return;
-    }
-
     max7456State.vSyncDetected = true;
-
     max7456State.frameCounter++;
     //debug[1] = max7456State.frameCounter;
 }
 
-void HSYNC_EXTI_Handler(void)
+void HSYNC_EXTI_Handler(extiCallbackRec_t* cb)
 {
+    UNUSED(cb);
     static uint32_t callCount = 0;
-    bool set = max7456ExtiHandler(max7456HSYNCExtiConfig);
     callCount++;
-    if (!set) {
-        return;
-    }
-
     max7456State.hSyncDetected = true;
 }
 
-
 typedef void (*handlerFuncPtr)(void);
-
-void max7456_extiInit(const extiConfig_t *extiConfig, handlerFuncPtr handlerFn, EXTITrigger_TypeDef trigger)
-{
-    gpio_config_t gpio;
-
-#ifdef STM32F303
-    if (extiConfig->gpioAHBPeripherals) {
-        RCC_AHBPeriphClockCmd(extiConfig->gpioAHBPeripherals, ENABLE);
-    }
-#endif
-#ifdef STM32F10X
-    if (extiConfig->gpioAPB2Peripherals) {
-        RCC_APB2PeriphClockCmd(extiConfig->gpioAPB2Peripherals, ENABLE);
-    }
-#endif
-
-    gpio.pin = extiConfig->gpioPin;
-    gpio.speed = Speed_2MHz;
-    gpio.mode = Mode_IN_FLOATING;
-    gpioInit(extiConfig->gpioPort, &gpio);
-
-#ifdef STM32F10X
-    // enable AFIO for EXTI support
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
-#endif
-
-#ifdef STM32F303xC
-    /* Enable SYSCFG clock otherwise the EXTI irq handlers are not called */
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
-#endif
-
-#ifdef STM32F10X
-    gpioExtiLineConfig(extiConfig->exti_port_source, extiConfig->exti_pin_source);
-#endif
-
-#ifdef STM32F303xC
-    gpioExtiLineConfig(extiConfig->exti_port_source, extiConfig->exti_pin_source);
-#endif
-
-    registerExtiCallbackHandler(extiConfig->exti_irqn, handlerFn);
-
-    EXTI_ClearITPendingBit(extiConfig->exti_line);
-
-    EXTI_InitTypeDef EXTIInit;
-    EXTIInit.EXTI_Line = extiConfig->exti_line;
-    EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTIInit.EXTI_Trigger = trigger;
-    EXTIInit.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTIInit);
-}
 
 void max7456_extiConfigure(
     const extiConfig_t *losExtiConfig,
@@ -278,13 +205,23 @@ void max7456_extiConfigure(
     const extiConfig_t *hSyncExtiConfig
 )
 {
-    max7456LOSExtiConfig = losExtiConfig;
-    max7456VSYNCExtiConfig = vSyncExtiConfig;
-    max7456HSYNCExtiConfig = hSyncExtiConfig;
+    losIO = IOGetByTag(losExtiConfig->io);
+    IOConfigGPIO(losIO, IOCFG_IN_FLOATING);
+    EXTIHandlerInit(&losExtiCallbackRec, LOS_EXTI_Handler);
+    EXTIConfig(losIO, &losExtiCallbackRec, NVIC_PRIO_OSD_LOS_EXTI, EXTI_Trigger_Rising_Falling);
+    EXTIEnable(losIO, true);
 
-    max7456_extiInit(max7456LOSExtiConfig, LOS_EXTI_Handler, EXTI_Trigger_Rising_Falling);
-    max7456_extiInit(max7456VSYNCExtiConfig, VSYNC_EXTI_Handler, EXTI_Trigger_Falling);
-    max7456_extiInit(max7456HSYNCExtiConfig, HSYNC_EXTI_Handler, EXTI_Trigger_Falling);
+    vsyncIO = IOGetByTag(vSyncExtiConfig->io);
+    IOConfigGPIO(vsyncIO, IOCFG_IN_FLOATING);
+    EXTIHandlerInit(&vsyncExtiCallbackRec, VSYNC_EXTI_Handler);
+    EXTIConfig(vsyncIO, &vsyncExtiCallbackRec, NVIC_PRIO_OSD_VSYNC_EXTI, EXTI_Trigger_Falling);
+    EXTIEnable(vsyncIO, true);
+
+    hsyncIO = IOGetByTag(hSyncExtiConfig->io);
+    IOConfigGPIO(hsyncIO, IOCFG_IN_FLOATING);
+    EXTIHandlerInit(&hsyncExtiCallbackRec, HSYNC_EXTI_Handler);
+    EXTIConfig(hsyncIO, &hsyncExtiCallbackRec, NVIC_PRIO_OSD_HSYNC_EXTI, EXTI_Trigger_Falling);
+    EXTIEnable(hsyncIO, true);
 }
 
 textScreen_t *max7456_getTextScreen(void)
@@ -320,17 +257,42 @@ static void max7456_setVideoMode(videoMode_e videoMode)
 {
     switch(videoMode)
     {
+        case VIDEO_AUTO:
+            // assume NTSC rather than leaving using an unknown state
+
+            // the reason for the NTSC default is that there are probably more NTSC capable screens than PAL in the world.
+            // Also most PAL screens can also display NTSC but not vice-versa.  PAL = more lines, less FPS.  NTSC = fewer lines, more FPS.
+
         case VIDEO_NTSC:
             max7456_videoModeMask = MAX7456_MODE_MASK_NTSC;
             max7456Screen.height = MAX7456_NTSC_ROW_COUNT;
+            max7456State.configuredVideoMode = VIDEO_NTSC;
             break;
          case VIDEO_PAL:
             max7456_videoModeMask = MAX7456_MODE_MASK_PAL;
             max7456Screen.height = MAX7456_PAL_ROW_COUNT;
+            max7456State.configuredVideoMode = VIDEO_PAL;
             break;
     }
 
     max7456Screen.width = MAX7456_COLUMN_COUNT;
+}
+
+static videoMode_e max7456_statusToVideoMode(uint8_t status)
+{
+    if (status & MAX7456_STAT_BIT_PAL_DETECTED) {
+        return VIDEO_PAL;
+    }
+    if (status & MAX7456_STAT_BIT_NTSC_DETECTED) {
+        return VIDEO_NTSC;
+    }
+    return VIDEO_AUTO;
+}
+
+static videoMode_e max7456_detectVideoMode(void)
+{
+    uint8_t status = max7456_read(MAX7456_REG_STAT_READ);
+    return max7456_statusToVideoMode(status);
 }
 
 bool max7456_isOSDEnabled(void)
@@ -383,17 +345,24 @@ void max7456_disableOSD(void)
     max7456_write(MAX7456_REG_VM0, max7456_videoModeMask); // MAX7456_VM0_BIT_OSD_ENABLE unset.
 }
 
-void max7456_init(videoMode_e videoMode)
+void max7456_init(videoMode_e desiredVideoMode)
 {
     spiSetDivisor(MAX7456_SPI_INSTANCE, MAX7456_SPI_CLOCK_DIVIDER);
 
-    max7456_setVideoMode(videoMode);
-
     max7456_softReset();
+
+    delay(100); // allow time to detect video signal
+
+    videoMode_e detectedVideoMode = max7456_detectVideoMode();
+    videoMode_e videoMode = detectedVideoMode;
+    if (desiredVideoMode != VIDEO_AUTO) {
+        videoMode = desiredVideoMode;
+    }
+    max7456_setVideoMode(videoMode);
 
     max7456_write(MAX7456_REG_OSDM, 0x00);
 
-    // set black/white level fo each row
+    // set black/white level for each row
     uint8_t row;
     for(row = 0; row < max7456Screen.height; row++) {
 		max7456_write(MAX7456_REG_RB0 + row, BWBRIGHTNESS(BLACKBRIGHTNESS, WHITEBRIGHTNESS));
@@ -462,6 +431,16 @@ uint8_t max7456_readStatus(void)
     return result;
 }
 
+void max7456_updateStatus(void)
+{
+    uint8_t status = max7456_readStatus();
+    if (status & MAX7456_STAT_BIT_LOS_OF_SYNC) {
+        max7456State.los = true;
+    }
+
+    max7456State.detectedVideoMode = max7456_statusToVideoMode(status);
+}
+
 //#define DEBUG_MAX7456_DM_UPDATE
 
 #ifdef DEBUG_MAX7456_DM_UPDATE
@@ -472,7 +451,21 @@ uint8_t max7456_readStatus(void)
 #define MAX7456_TIME_SECTION_BEGIN(index) do {} while(0)
 #endif
 
-void max7456_writeScreen(textScreen_t *textScreen, char *screenBuffer)
+void max7456_waitForVSync(void)
+{
+    uint32_t start = millis();
+    while (max7456State.useSync && !max7456State.vSyncDetected) {
+        // Wait for VSYNC pulse and ISR to update the state.
+
+        delay(1);
+        uint32_t now = millis();
+        if (cmp32(now, start) > 17) {  // 1000/60fps = 16.666
+            break;
+        }
+    }
+}
+
+void max7456_writeScreen(textScreen_t *textScreen, TEXT_SCREEN_CHAR *screenBuffer)
 {
     ENABLE_MAX7456;
 
@@ -493,7 +486,7 @@ void max7456_writeScreen(textScreen_t *textScreen, char *screenBuffer)
 
     for (int y = 0; y < textScreen->height; y++) {
         unsigned int rowOffset = (y * textScreen->width);
-        char *buffer = &screenBuffer[rowOffset];
+        TEXT_SCREEN_CHAR *buffer = &screenBuffer[rowOffset];
 
         if (y == 8) {
             MAX7456_TIME_SECTION_END(1);
@@ -501,9 +494,7 @@ void max7456_writeScreen(textScreen_t *textScreen, char *screenBuffer)
             max7456State.vSyncDetected = false;
         }
 
-        while (!max7456State.vSyncDetected) {
-            // Wait for VSYNC pulse and ISR to update the state.
-        }
+        max7456_waitForVSync();
 
         if (y == 0) {
             MAX7456_TIME_SECTION_BEGIN(1);
