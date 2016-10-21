@@ -30,7 +30,7 @@ uint32_t GPS_coord_to_degrees(const char* coordinateString)
 {
     const char *fieldSeparator, *remainingString;
     uint8_t degress = 0, minutes = 0;
-    uint16_t fractionalMinutes = 0;
+    uint32_t fractionalMinutes = 0;     // [Tetraktys] using higher GPS resolution => needs 32bit data type
     uint8_t digitIndex;
 
     // scan for decimal point or end of field
@@ -57,12 +57,12 @@ uint32_t GPS_coord_to_degrees(const char* coordinateString)
     // ten-thousandths of a minute
     if (*fieldSeparator == '.') {
         remainingString = fieldSeparator + 1;
-        for (digitIndex = 0; digitIndex < 4; digitIndex++) {
+        for (digitIndex = 0; digitIndex < 6; digitIndex++) {        // [Tetraktys] using higher GPS resolution with up to 6 digits (up from 4)
             fractionalMinutes *= 10;
             if (isdigit((unsigned char)*remainingString))
                 fractionalMinutes += *remainingString++ - '0';
         }
     }
-    return degress * 10000000UL + (minutes * 1000000UL + fractionalMinutes * 100UL) / 6;
+    return degress * 10000000UL + (minutes * 1000000UL + fractionalMinutes) / 6;    // [Tetraktys] with more digits, the scaling changes 
 }
 #endif
